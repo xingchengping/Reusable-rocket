@@ -1,0 +1,8 @@
+# ai_controller 依赖
+numpy>=1.24
+pyyaml>=6.0
+pyserial>=3.5
+flask>=2.3
+
+# llama-cpp-python: GGUF 模型推理
+llama-cpp-python>=0.2.0

@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>回收火箭 - 地面控制面板</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --card: #141420;
+    --border: #222244;
+    --text: #c8c8e0;
+    --dim: #666688;
+    --acc: #6c5ce7;
+    --acc2: #a29bfe;
+    --danger: #ff4757;
+    --warn: #ffa502;
+    --ok: #2ed573;
+    --cyan: #00d2d3;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  /* 动画背景 */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at 20% 20%, rgba(108,92,231,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 60%, rgba(0,210,211,0.06) 0%, transparent 60%),
+                radial-gradient(ellipse at 50% 80%, rgba(46,213,115,0.04) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .container { position:relative; z-index:1; max-width:1200px; margin:0 auto; padding:16px; }
+
+  /* 头部 */
+  .header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 20px; margin-bottom:16px;
+    background: var(--card); border:1px solid var(--border); border-radius:12px;
+  }
+  .header h1 { font-size:1.3rem; font-weight:600; }
+  .header .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .dot.online { background:var(--ok); box-shadow:0 0 8px var(--ok); }
+  .dot.offline { background:var(--danger); }
+
+  /* 主布局 */
+  .main { display:grid; grid-template-columns:1fr 380px; gap:16px; }
+  @media (max-width:900px) { .main { grid-template-columns:1fr; } }
+
+  /* 摄像头 */
+  .camera-panel {
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    overflow:hidden; position:relative; aspect-ratio:4/3;
+    min-height:300px;
+  }
+  .camera-panel img { width:100%; height:100%; object-fit:contain; display:block; }
+  .camera-panel .no-signal {
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; color:var(--dim);
+  }
+  .no-signal .icon { font-size:3rem; margin-bottom:8px; }
+  .camera-label {
+    position:absolute; top:8px; left:8px; padding:4px 10px;
+    background:rgba(0,0,0,0.6); border-radius:6px; font-size:0.75rem;
+    color:var(--acc2);
+  }
+
+  /* 遥测面板 */
+  .telem-grid {
+    display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;
+  }
+  .telem-item {
+    background:var(--card); border:1px solid var(--border); border-radius:8px;
+    padding:10px 12px;
+  }
+  .telem-item .label { font-size:0.7rem; color:var(--dim); text-transform:uppercase; }
+  .telem-item .value { font-size:1.4rem; font-weight:600; margin-top:2px; }
+  .telem-item .unit { font-size:0.75rem; color:var(--dim); font-weight:400; }
+
+  /* 控制按钮区 */
+  .controls {
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:16px;
+  }
+  .controls h3 { font-size:0.85rem; color:var(--dim); margin-bottom:14px; text-transform:uppercase; letter-spacing:1px; }
+
+  .btn-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+  .btn-row.single { grid-template-columns:1fr; }
+
+  .btn {
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    padding:14px 16px; border:none; border-radius:10px; cursor:pointer;
+    font-size:0.95rem; font-weight:600; color:#fff;
+    transition:all 0.2s; position:relative; overflow:hidden;
+  }
+  .btn:hover { transform:translateY(-2px); }
+  .btn:active { transform:translateY(0); }
+  .btn .ico { font-size:1.2rem; }
+
+  .btn-fire {
+    background:linear-gradient(135deg, #ff6348, #ff4757);
+    box-shadow:0 4px 15px rgba(255,71,87,0.3);
+  }
+  .btn-fire:hover { box-shadow:0 6px 20px rgba(255,71,87,0.5); }
+  .btn-fire:disabled { background:#444; box-shadow:none; cursor:not-allowed; }
+
+  .btn-relief {
+    background:linear-gradient(135deg, #ffa502, #e67e22);
+    box-shadow:0 4px 15px rgba(255,165,2,0.3);
+  }
+  .btn-relief:hover { box-shadow:0 6px 20px rgba(255,165,2,0.5); }
+
+  .btn-ethanol {
+    background:linear-gradient(135deg, #3742fa, #5352ed);
+    box-shadow:0 4px 15px rgba(55,66,250,0.3);
+  }
+  .btn-ethanol:hover { box-shadow:0 6px 20px rgba(55,66,250,0.5); }
+
+  .btn-nitric {
+    background:linear-gradient(135deg, #6c5ce7, #a29bfe);
+    box-shadow:0 4px 15px rgba(108,92,231,0.3);
+  }
+  .btn-nitric:hover { box-shadow:0 6px 20px rgba(108,92,231,0.5); }
+
+  .btn-chute {
+    background:linear-gradient(135deg, #2ed573, #7bed9f);
+    color:#0a0a0f;
+    box-shadow:0 4px 15px rgba(46,213,115,0.3);
+    font-size:1.05rem; padding:18px;
+  }
+  .btn-chute:hover { box-shadow:0 6px 20px rgba(46,213,115,0.5); }
+  .btn-danger { color:var(--danger); border-color:rgba(255,71,87,0.4); }
+  .btn-danger:hover { background:rgba(255,71,87,0.12); box-shadow:0 4px 15px rgba(255,71,87,0.3); }
+  .btn-warn { color:#ffa502; border-color:rgba(255,165,2,0.4); }
+  .btn-warn:hover { background:rgba(255,165,2,0.1); box-shadow:0 4px 15px rgba(255,165,2,0.25); }
+
+  /* 按钮行 */
+  .btn-row.double { grid-template-columns: 1fr 1fr; }
+
+  /* 起飞前检查 (v3.1) */
+  .checklist {
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:16px; margin-bottom:12px;
+  }
+  .checklist h3 {
+    font-size:0.85rem; color:var(--dim); margin-bottom:12px;
+    text-transform:uppercase; letter-spacing:1px;
+  }
+  .check-item {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:7px 4px; border-bottom:1px solid rgba(255,255,255,0.04);
+    font-size:0.85rem;
+  }
+  .check-item:last-child { border-bottom:none; }
+  .check-status { font-weight:700; font-size:1rem; }
+  .check-ok   { color:var(--ok); }
+  .check-fail { color:var(--danger); }
+  .check-na   { color:var(--dim); }
+  .check-ready {
+    margin-top:10px; padding:10px; border-radius:8px; text-align:center;
+    font-size:0.9rem; font-weight:600;
+  }
+  .ready-yes { background:rgba(46,213,115,0.12); color:var(--ok); }
+  .ready-no  { background:rgba(255,71,87,0.12); color:var(--danger); }
+  .ready-wait{ background:rgba(102,102,136,0.12); color:var(--dim); }
+
+  /* 状态条 */
+  .status-bar {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-top:12px; padding:10px 14px;
+    background:var(--card); border:1px solid var(--border); border-radius:8px;
+    font-size:0.8rem;
+  }
+  .status-bar .status-text { color:var(--text); }
+  .status-bar .fps { color:var(--dim); }
+
+  /* 确认弹窗 */
+  .modal-overlay {
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7);
+    z-index:100; align-items:center; justify-content:center;
+  }
+  .modal-overlay.show { display:flex; }
+  .modal {
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:24px; max-width:380px; width:90%; text-align:center;
+  }
+  .modal h3 { margin-bottom:12px; font-size:1.1rem; }
+  .modal p { color:var(--dim); margin-bottom:20px; font-size:0.9rem; }
+  .modal .modal-btns { display:flex; gap:10px; justify-content:center; }
+  .modal .btn-cancel {
+    padding:10px 24px; border:1px solid var(--border); border-radius:8px;
+    background:transparent; color:var(--text); cursor:pointer; font-size:0.9rem;
+  }
+  .modal .btn-confirm {
+    padding:10px 24px; border:none; border-radius:8px; cursor:pointer;
+    font-size:0.9rem; font-weight:600; color:#fff;
+  }
+  .btn-confirm.danger { background:var(--danger); }
+  .btn-confirm.fire { background:var(--danger); }
+  .btn-confirm.chute { background:var(--ok); color:#0a0a0f; }
+
+  /* 加载动画 */
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .sending { animation: pulse 0.6s infinite; }
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- 头部 -->
+  <div class="header">
+    <h1>🚀 回收火箭 地面控制面板</h1>
+    <div>
+      <span id="conn-dot" class="dot offline"></span>
+      <span id="conn-text" style="font-size:0.8rem;color:var(--dim);">未连接</span>
+    </div>
+  </div>
+
+  <!-- 主内容 -->
+  <div class="main">
+    <!-- 左: 摄像头 -->
+    <div class="camera-panel" id="cam-panel">
+      <div class="camera-label">📷 箭载摄像头</div>
+      <img id="cam-img" src="" alt="等待画面..." style="display:none;">
+      <div class="no-signal" id="no-signal">
+        <div class="icon">📡</div>
+        <div>等待火箭视频信号...</div>
+      </div>
+    </div>
+
+    <!-- 右: 遥测 + 控制 -->
+    <div>
+      <!-- 遥测 -->
+      <div class="telem-grid">
+        <div class="telem-item">
+          <div class="label">高度</div>
+          <div class="value" id="telem-alt">--<span class="unit">m</span></div>
+        </div>
+        <div class="telem-item">
+          <div class="label">垂直速度</div>
+          <div class="value" id="telem-vz">--<span class="unit">m/s</span></div>
+        </div>
+        <div class="telem-item">
+          <div class="label">水平误差</div>
+          <div class="value" id="telem-herr">--<span class="unit">m</span></div>
+        </div>
+        <div class="telem-item">
+          <div class="label">燃料</div>
+          <div class="value" id="telem-fuel">--<span class="unit">%</span></div>
+        </div>
+        <div class="telem-item">
+          <div class="label">油门</div>
+          <div class="value" id="telem-thr">--<span class="unit">%</span></div>
+        </div>
+        <div class="telem-item">
+          <div class="label">阶段</div>
+          <div class="value" id="telem-phase" style="font-size:1rem;">--</div>
+        </div>
+        <div class="telem-item">
+          <div class="label">安全等级</div>
+          <div class="value" id="telem-safety" style="font-size:1rem;">--</div>
+        </div>
+        <div class="telem-item">
+          <div class="label">LLM 推理</div>
+          <div class="value" id="telem-llm" style="font-size:0.9rem;">--</div>
+        </div>
+      </div>
+
+      <!-- 起飞前检查 (v3.1): 全绿才允许点火 -->
+      <div class="checklist">
+        <h3>🚦 起飞前检查</h3>
+        <div class="check-item"><span>IMU 传感器</span><span class="check-status" id="chk-imu">—</span></div>
+        <div class="check-item"><span>气压计</span><span class="check-status" id="chk-baro">—</span></div>
+        <div class="check-item"><span>激光测距 (可选)</span><span class="check-status" id="chk-tof">—</span></div>
+        <div class="check-item"><span>执行器 / 舵机</span><span class="check-status" id="chk-servo">—</span></div>
+        <div class="check-item"><span>燃料 (&gt;20%)</span><span class="check-status" id="chk-fuel">—</span></div>
+        <div class="check-item"><span>安全等级</span><span class="check-status" id="chk-safety">—</span></div>
+        <div class="check-ready ready-wait" id="chk-ready">等待遥测...</div>
+      </div>
+
+      <!-- 控制按钮 -->
+      <div class="controls">
+        <h3>🔧 一键操作</h3>
+        <div class="btn-row single">
+          <button class="btn btn-fire" id="btn-fire" onclick="confirmAction('ignite')" disabled>
+            <span class="ico">🔥</span> 一键远程打火
+          </button>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-relief" id="btn-relief" onclick="confirmAction('relief')">
+            <span class="ico">💨</span> 泄压 (燃烧室)
+          </button>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-ethanol" id="btn-ethanol" onclick="confirmAction('close_ethanol')">
+            <span class="ico">🧪</span> 关闭乙醇阀门
+          </button>
+          <button class="btn btn-nitric" id="btn-nitric" onclick="confirmAction('close_nitric')">
+            <span class="ico">⚗️</span> 关闭硝酸阀门
+          </button>
+        </div>
+        <div class="btn-row single">
+          <button class="btn btn-chute" id="btn-chute" onclick="confirmAction('deploy_chute')">
+            <span class="ico">🪂</span> 打开降落伞 (紧急)
+          </button>
+        </div>
+        <div class="btn-row single">
+          <button class="btn btn-danger" id="btn-abort" style="border:1px solid var(--danger);"
+                  onclick="confirmAction('abort')">
+            <span class="ico">⛔</span> 紧急急停 ABORT
+          </button>
+        </div>
+      </div>
+
+      <!-- 筷子架: 手动开/关 -->
+      <div class="btn-row double">
+        <button class="btn btn-warn" id="btn-chop-open" onclick="chopCmd('open')">
+          <span class="ico">✋</span> 筷子架打开
+        </button>
+        <button class="btn btn-danger" id="btn-chop-close" onclick="chopCmd('close')">
+          <span class="ico">🤏</span> 筷子架关闭
+        </button>
+      </div>
+
+      <!-- 状态 -->
+      <div class="status-bar">
+        <span class="status-text" id="status-msg">就绪</span>
+        <span class="fps" id="fps"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 确认弹窗 -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3 id="modal-title">确认操作</h3>
+    <p id="modal-msg"></p>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">取消</button>
+      <button class="btn-confirm" id="modal-confirm" onclick="executeAction()">确认</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PHASE_NAMES = {0:"待机",1:"点火",2:"上升",3:"悬停",4:"下降",5:"捕获",6:"急停"};
+const SAFETY_NAMES = {0:"正常",1:"警告",2:"危险",3:"急停"};
+const SAFETY_COLORS = {0:"var(--ok)",1:"var(--warn)",2:"var(--danger)",3:"var(--danger)"};
+let pendingAction = null;
+let statusTimer = null;
+
+// 确认弹窗
+const actions = {
+  ignite:       {title:"确认点火", msg:"将远程点燃火箭发动机, 确定吗?", cls:"fire"},
+  relief:       {title:"确认泄压", msg:"将打开燃烧室泄压阀, 确定吗?", cls:"danger"},
+  close_ethanol:{title:"关闭乙醇阀门", msg:"将切断乙醇供应, 确定吗?", cls:"danger"},
+  close_nitric: {title:"关闭硝酸阀门", msg:"将切断硝酸供应并关闭泵, 确定吗?", cls:"danger"},
+  deploy_chute: {title:"⚠ 紧急开伞", msg:"将释放降落伞并强制急停! 这是不可逆操作, 确定吗?", cls:"chute"},
+  abort:        {title:"⛔ 紧急急停", msg:"将立即切断推力并终止飞行! 这是不可逆操作, 确定吗?", cls:"danger"},
+};
+
+function confirmAction(action) {
+  const a = actions[action];
+  if (!a) return;
+  pendingAction = action;
+  document.getElementById('modal-title').textContent = a.title;
+  document.getElementById('modal-msg').textContent = a.msg;
+  const cfm = document.getElementById('modal-confirm');
+  cfm.className = 'btn-confirm ' + a.cls;
+  cfm.textContent = '确认';
+  document.getElementById('modal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+  pendingAction = null;
+}
+
+async function executeAction() {
+  if (!pendingAction) return;
+  const btn = document.getElementById('btn-' + pendingAction.replace('_','-').replace('_','-'));
+  if (btn) btn.classList.add('sending');
+  closeModal();
+
+  const endpoints = {
+    ignite:'/api/ignite', relief:'/api/relief',
+    close_ethanol:'/api/close_ethanol', close_nitric:'/api/close_nitric',
+    deploy_chute:'/api/deploy_chute', abort:'/api/abort'
+  };
+  try {
+    const r = await fetch(endpoints[pendingAction], {method:'POST'});
+    const d = await r.json();
+    setStatus(d.ok ? '指令已发送' : '发送失败', d.ok ? 'ok' : 'err');
+  } catch(e) {
+    setStatus('网络错误', 'err');
+  }
+  if (btn) btn.classList.remove('sending');
+  pendingAction = null;
+}
+
+// 筷子架手动控制 (开/关)
+async function chopCmd(cmd) {
+  const ep = '/api/chop_' + cmd;
+  try {
+    const r = await fetch(ep, {method:'POST'});
+    const d = await r.json();
+    const label = cmd === 'open' ? '打开' : '关闭';
+    setStatus(d.ok ? '筷子架: 已发送' + label : '筷子架: 发送失败', d.ok ? 'ok' : 'err');
+  } catch(e) {
+    setStatus('筷子架: 通信错误', 'err');
+  }
+}
+
+function setStatus(msg, type) {
+  const el = document.getElementById('status-msg');
+  el.textContent = msg;
+  el.style.color = type === 'err' ? 'var(--danger)' : type === 'ok' ? 'var(--ok)' : 'var(--text)';
+}
+
+// 遥测轮询
+let lastCamUpdate = 0;
+async function pollStatus() {
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    const telem = d.telem || {};
+    if (Object.keys(telem).length > 0) {
+      document.getElementById('conn-dot').className = 'dot online';
+      document.getElementById('conn-text').textContent = '已连接';
+      document.getElementById('telem-alt').innerHTML = (telem.alt||0).toFixed(1) + '<span class="unit">m</span>';
+      document.getElementById('telem-vz').innerHTML = (telem.vz||0).toFixed(2) + '<span class="unit">m/s</span>';
+      document.getElementById('telem-herr').innerHTML = ((telem.horiz_err)||0).toFixed(2) + '<span class="unit">m</span>';
+      document.getElementById('telem-fuel').innerHTML = ((telem.fuel||0)*100).toFixed(0) + '<span class="unit">%</span>';
+      document.getElementById('telem-thr').innerHTML = ((telem.throttle||0)*100).toFixed(0) + '<span class="unit">%</span>';
+      document.getElementById('telem-phase').textContent = PHASE_NAMES[telem.phase] || '--';
+
+      // 安全等级 (0正常 1警告 2危险 3急停)
+      const sEl = document.getElementById('telem-safety');
+      sEl.textContent = SAFETY_NAMES[telem.safety] || '--';
+      sEl.style.color = SAFETY_COLORS[telem.safety] || 'var(--text)';
+
+      // ── 起飞前检查清单 (v3.1): 全绿才允许点火 ──
+      const health = d.health || {};
+      const labels = {imu:'IMU 传感器', baro:'气压计', tof:'激光测距',
+                      servo:'执行器/舵机', fuel:'燃料(>20%)'};
+      const missing = [];
+      ['imu','baro','tof','servo','fuel'].forEach(k => {
+        const el = document.getElementById('chk-' + k);
+        if (health[k] === true) {
+          el.textContent = '✓'; el.className = 'check-status check-ok';
+        } else if (k === 'tof') {
+          el.textContent = '—'; el.className = 'check-status check-na';  // 可选外设
+        } else {
+          el.textContent = '✗'; el.className = 'check-status check-fail';
+          missing.push(labels[k]);
+        }
+      });
+      const chkSafety = document.getElementById('chk-safety');
+      if (telem.safety === 0) {
+        chkSafety.textContent = '✓'; chkSafety.className = 'check-status check-ok';
+      } else {
+        chkSafety.textContent = '✗'; chkSafety.className = 'check-status check-fail';
+        missing.push('安全等级');
+      }
+
+      // 总状态 + 点火权限: 仅 SYS_READY (必需项全绿 + IDLE + 安全OK) 才可点火
+      const readyEl = document.getElementById('chk-ready');
+      const fireBtn = document.getElementById('btn-fire');
+      if (health.ready) {
+        readyEl.textContent = '✅ 检查通过, 可以点火';
+        readyEl.className = 'check-ready ready-yes';
+        fireBtn.disabled = false;
+      } else if (telem.phase >= 1) {
+        readyEl.textContent = '⏳ 飞行中';
+        readyEl.className = 'check-ready ready-wait';
+        fireBtn.disabled = true;
+      } else if (missing.length > 0) {
+        readyEl.textContent = '❌ 未就绪: ' + missing.join('、');
+        readyEl.className = 'check-ready ready-no';
+        fireBtn.disabled = true;
+      } else {
+        readyEl.textContent = '⏳ 等待就绪...';
+        readyEl.className = 'check-ready ready-wait';
+        fireBtn.disabled = true;
+      }
+
+      lastCamUpdate = Date.now();
+    }
+
+    // LLM 推理统计
+    const ctrl = d.control || {};
+    if (ctrl.llm_calls !== undefined) {
+      const llmEl = document.getElementById('telem-llm');
+      const failPct = ctrl.llm_calls > 0 ? (ctrl.llm_fails / ctrl.llm_calls * 100) : 0;
+      const avgMs = ctrl.llm_avg_ms || 0;
+      llmEl.innerHTML = (ctrl.llm_calls||0) + '次 @' + avgMs.toFixed(0) + 'ms' +
+                        ' <span class="unit">失败' + failPct.toFixed(0) + '%</span>';
+    }
+  } catch (e) {}
+
+  // 如果超过3秒没收到遥测, 显示无信号
+  if (Date.now() - lastCamUpdate > 3000 && lastCamUpdate > 0) {
+    document.getElementById('conn-dot').className = 'dot offline';
+    document.getElementById('conn-text').textContent = '无信号';
+  }
+}
+
+// 摄像头 MJPEG
+function initCamera() {
+  const img = document.getElementById('cam-img');
+  img.onload = function() {
+    img.style.display = 'block';
+    document.getElementById('no-signal').style.display = 'none';
+  };
+  img.onerror = function() {
+    img.style.display = 'none';
+    document.getElementById('no-signal').style.display = 'flex';
+  };
+  img.src = '/video_feed';
+}
+
+// 启动
+initCamera();
+pollStatus();
+statusTimer = setInterval(pollStatus, 500);
+</script>
+</body>
+</html>
